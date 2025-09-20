@@ -83,6 +83,14 @@ export default function FormModal({ onResolve, onCancel }: Props) {
             className="w-full rounded border border-zinc-300 bg-white px-3 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </label>
+        <label className="block">
+          <span className="mb-1 block text-sm">이름 (선택)</span>
+          <input
+            name="name"
+            type="text"
+            className="w-full rounded border border-zinc-300 bg-white px-3 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </label>
         {error ? (
           <p id={errorId} role="alert" className="text-sm text-red-600">
             {error}

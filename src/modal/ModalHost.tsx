@@ -4,10 +4,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
   type ReactNode,
 } from "react";
+import type React from "react";
 
 type ModalControls<T> = {
   resolve: (value: T) => void;
@@ -47,9 +49,13 @@ type PendingRequest = {
 export function ModalProvider({ children }: PropsWithChildren) {
   const [pending, setPending] = useState<PendingRequest | null>(null);
   const isOpen = !!pending;
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
   const open = useCallback(<T,>(render: OpenRender<T>): Promise<T | null> => {
     return new Promise<T | null>((resolve) => {
+      previousActiveElementRef.current =
+        (document.activeElement as HTMLElement) || null;
       setPending({
         render: render as OpenRender<any>,
         resolvePromise: resolve as (value: any) => void,
@@ -66,6 +72,38 @@ export function ModalProvider({ children }: PropsWithChildren) {
     if (e.key === "Escape" || e.key === "Esc") {
       e.preventDefault();
       cancel();
+      return;
+    }
+
+    if (e.key === "Tab") {
+      const container = dialogRef.current;
+      if (!container) return;
+
+      const tabbables = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter(
+        (el) =>
+          !el.hasAttribute("aria-hidden") && el.tabIndex !== -1 && !el.hidden
+      );
+
+      if (tabbables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      const first = tabbables[0];
+      const last = tabbables[tabbables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && (active === first || active === container)) {
+        e.preventDefault();
+        last.focus();
+      }
     }
   }
 
@@ -82,6 +120,9 @@ export function ModalProvider({ children }: PropsWithChildren) {
       if (!pending) return;
       pending.resolvePromise(value as unknown);
       setPending(null);
+      queueMicrotask(() => {
+        previousActiveElementRef.current?.focus?.();
+      });
     },
     [pending]
   );
@@ -90,6 +131,9 @@ export function ModalProvider({ children }: PropsWithChildren) {
     if (!pending) return;
     pending.resolvePromise(null);
     setPending(null);
+    queueMicrotask(() => {
+      previousActiveElementRef.current?.focus?.();
+    });
   }, [pending]);
 
   const controls = useMemo<ModalControls<any>>(
@@ -113,6 +157,8 @@ export function ModalProvider({ children }: PropsWithChildren) {
             aria-modal="true"
             className="w-[min(560px,92vw)] max-h-[80dvh] rounded-xl bg-white p-5 shadow-xl outline-none dark:bg-zinc-900"
             onClick={stopPropagation}
+            onKeyDown={handleKeydown}
+            ref={dialogRef}
           >
             {pending?.render(controls as ModalControls<any>)}
           </div>
