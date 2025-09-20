@@ -8,3 +8,69 @@
 
 @layer utilities {
 }
+
+@layer components {
+  @keyframes modal-overlay-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes modal-overlay-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes modal-content-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes modal-content-out {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+
+  /* Overlay animations */
+  [data-part="overlay"][data-state="open"] {
+    animation: modal-overlay-in 200ms ease-out forwards;
+  }
+  [data-part="overlay"][data-state="closed"] {
+    animation: modal-overlay-out 160ms ease-in forwards;
+  }
+
+  /* Dialog content animations */
+  [data-part="content"][data-state="open"] {
+    animation: modal-content-in 220ms cubic-bezier(0.2, 0, 0, 1) forwards;
+  }
+  [data-part="content"][data-state="closed"] {
+    animation: modal-content-out 160ms cubic-bezier(0.4, 0, 1, 1) forwards;
+    pointer-events: none;
+  }
+
+  /* Respect prefers-reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    [data-part][data-state] {
+      animation: none !important;
+    }
+  }
+}

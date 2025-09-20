@@ -49,8 +49,14 @@ type PendingRequest = {
 export function ModalProvider({ children }: PropsWithChildren) {
   const [pending, setPending] = useState<PendingRequest | null>(null);
   const isOpen = !!pending;
+  const [isMounted, setIsMounted] = useState(false);
+  const [visualState, setVisualState] = useState<
+    "open" | "closed" | "unmounted"
+  >("unmounted");
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
+  const restoreFocusOnCloseRef = useRef(false);
+  const prefersReducedMotionRef = useRef(false);
 
   const open = useCallback(<T,>(render: OpenRender<T>): Promise<T | null> => {
     return new Promise<T | null>((resolve) => {
@@ -60,6 +66,8 @@ export function ModalProvider({ children }: PropsWithChildren) {
         render: render as OpenRender<any>,
         resolvePromise: resolve as (value: any) => void,
       });
+      setIsMounted(true);
+      setVisualState("open");
     });
   }, []);
 
@@ -67,6 +75,16 @@ export function ModalProvider({ children }: PropsWithChildren) {
     setExternalOpen(open);
     return () => setExternalOpen(null);
   }, [open]);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => {
+      prefersReducedMotionRef.current = mql.matches;
+    };
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
 
   function handleKeydown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape" || e.key === "Esc") {
@@ -119,10 +137,20 @@ export function ModalProvider({ children }: PropsWithChildren) {
     (value: unknown) => {
       if (!pending) return;
       pending.resolvePromise(value as unknown);
-      setPending(null);
-      queueMicrotask(() => {
-        previousActiveElementRef.current?.focus?.();
-      });
+      restoreFocusOnCloseRef.current = true;
+      setVisualState("closed");
+      if (prefersReducedMotionRef.current) {
+        // 애니메이션이 꺼진 경우 즉시 언마운트 처리
+        setIsMounted(false);
+        setVisualState("unmounted");
+        setPending(null);
+        if (restoreFocusOnCloseRef.current) {
+          queueMicrotask(() => {
+            previousActiveElementRef.current?.focus?.();
+            restoreFocusOnCloseRef.current = false;
+          });
+        }
+      }
     },
     [pending]
   );
@@ -130,10 +158,19 @@ export function ModalProvider({ children }: PropsWithChildren) {
   const cancel = useCallback(() => {
     if (!pending) return;
     pending.resolvePromise(null);
-    setPending(null);
-    queueMicrotask(() => {
-      previousActiveElementRef.current?.focus?.();
-    });
+    restoreFocusOnCloseRef.current = true;
+    setVisualState("closed");
+    if (prefersReducedMotionRef.current) {
+      setIsMounted(false);
+      setVisualState("unmounted");
+      setPending(null);
+      if (restoreFocusOnCloseRef.current) {
+        queueMicrotask(() => {
+          previousActiveElementRef.current?.focus?.();
+          restoreFocusOnCloseRef.current = false;
+        });
+      }
+    }
   }, [pending]);
 
   const controls = useMemo<ModalControls<any>>(
@@ -165,29 +202,57 @@ export function ModalProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (isOpen) {
+      setIsMounted(true);
+      setVisualState("open");
       return () => {
         // No body style manipulation needed
       };
     }
   }, [isOpen]);
 
+  function handleOverlayAnimationEnd(e: React.AnimationEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget) return;
+    if (visualState === "closed") {
+      setIsMounted(false);
+      setVisualState("unmounted");
+      setPending(null);
+      if (restoreFocusOnCloseRef.current) {
+        queueMicrotask(() => {
+          previousActiveElementRef.current?.focus?.();
+          restoreFocusOnCloseRef.current = false;
+        });
+      }
+    }
+  }
+
+  const shouldRenderLayer = isMounted;
+
   return (
     <ModalContext.Provider value={open}>
-      <div className={isOpen ? "h-dvh max-h-dvh overflow-hidden" : undefined}>
+      <div
+        className={
+          shouldRenderLayer ? "h-dvh max-h-dvh overflow-hidden" : undefined
+        }
+      >
         {children}
       </div>
-      {isOpen ? (
+      {shouldRenderLayer ? (
         <div
           className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40"
+          data-part="overlay"
+          data-state={visualState === "open" ? "open" : "closed"}
           onClick={handleOverlayClick}
           onKeyDown={handleKeydown}
           tabIndex={-1}
           onWheelCapture={handleWheelCapture}
           onTouchMoveCapture={handleTouchMoveCapture}
+          onAnimationEnd={handleOverlayAnimationEnd}
         >
           {/* 각 모달 컴포넌트(FormModal)에서 role/aria-*를 설정합니다. */}
           <div
             className="w-[min(560px,92vw)] max-h-[80dvh] rounded-xl bg-white p-5 shadow-xl outline-none dark:bg-zinc-900"
+            data-part="content"
+            data-state={visualState === "open" ? "open" : "closed"}
             onClick={stopPropagation}
             onKeyDown={handleKeydown}
             ref={dialogRef}
