@@ -47,7 +47,12 @@ export default function FormModal({ onResolve, onCancel }: Props) {
   }
 
   return (
-    <div aria-labelledby={titleId} aria-describedby={descId}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={descId}
+    >
       <div className="flex items-center justify-between">
         <h2
           id={titleId}

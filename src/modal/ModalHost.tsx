@@ -185,10 +185,8 @@ export function ModalProvider({ children }: PropsWithChildren) {
           onWheelCapture={handleWheelCapture}
           onTouchMoveCapture={handleTouchMoveCapture}
         >
-          {/* 각 모달 컴포넌트 내부에서 aria-labelledby/aria-describedby를 설정합니다. */}
+          {/* 각 모달 컴포넌트(FormModal)에서 role/aria-*를 설정합니다. */}
           <div
-            role="dialog"
-            aria-modal="true"
             className="w-[min(560px,92vw)] max-h-[80dvh] rounded-xl bg-white p-5 shadow-xl outline-none dark:bg-zinc-900"
             onClick={stopPropagation}
             onKeyDown={handleKeydown}
