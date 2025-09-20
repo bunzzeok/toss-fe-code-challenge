@@ -141,15 +141,49 @@ export function ModalProvider({ children }: PropsWithChildren) {
     [resolve, cancel]
   );
 
+  const scrollContentRef = useRef<HTMLDivElement | null>(null);
+
+  function isInsideDialog(node: EventTarget | null) {
+    return node instanceof Node && !!dialogRef.current?.contains(node);
+  }
+
+  function isInsideScrollContent(node: EventTarget | null) {
+    return node instanceof Node && !!scrollContentRef.current?.contains(node);
+  }
+
+  function handleWheelCapture(e: React.WheelEvent<HTMLDivElement>) {
+    if (!isInsideDialog(e.target) || !isInsideScrollContent(e.target)) {
+      e.preventDefault();
+    }
+  }
+
+  function handleTouchMoveCapture(e: React.TouchEvent<HTMLDivElement>) {
+    if (!isInsideDialog(e.target) || !isInsideScrollContent(e.target)) {
+      e.preventDefault();
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      return () => {
+        // No body style manipulation needed
+      };
+    }
+  }, [isOpen]);
+
   return (
     <ModalContext.Provider value={open}>
-      {children}
+      <div className={isOpen ? "h-dvh max-h-dvh overflow-hidden" : undefined}>
+        {children}
+      </div>
       {isOpen ? (
         <div
           className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40"
           onClick={handleOverlayClick}
           onKeyDown={handleKeydown}
           tabIndex={-1}
+          onWheelCapture={handleWheelCapture}
+          onTouchMoveCapture={handleTouchMoveCapture}
         >
           {/* 각 모달 컴포넌트 내부에서 aria-labelledby/aria-describedby를 설정합니다. */}
           <div
@@ -160,7 +194,12 @@ export function ModalProvider({ children }: PropsWithChildren) {
             onKeyDown={handleKeydown}
             ref={dialogRef}
           >
-            {pending?.render(controls as ModalControls<any>)}
+            <div
+              ref={scrollContentRef}
+              className="max-h-[70dvh] overflow-auto overscroll-contain"
+            >
+              {pending?.render(controls as ModalControls<any>)}
+            </div>
           </div>
         </div>
       ) : null}
