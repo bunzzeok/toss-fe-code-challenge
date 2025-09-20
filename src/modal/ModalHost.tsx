@@ -41,9 +41,9 @@ export function useOpenModal() {
   return ctx;
 }
 
-type PendingRequest = {
-  render: OpenRender<any>;
-  resolvePromise: (value: any) => void;
+type PendingRequest<T = unknown> = {
+  render: OpenRender<T>;
+  resolvePromise: (value: T | null) => void;
 };
 
 export function ModalProvider({ children }: PropsWithChildren) {
@@ -58,18 +58,22 @@ export function ModalProvider({ children }: PropsWithChildren) {
   const restoreFocusOnCloseRef = useRef(false);
   const prefersReducedMotionRef = useRef(false);
 
-  const open = useCallback(<T,>(render: OpenRender<T>): Promise<T | null> => {
-    return new Promise<T | null>((resolve) => {
-      previousActiveElementRef.current =
-        (document.activeElement as HTMLElement) || null;
-      setPending({
-        render: render as OpenRender<any>,
-        resolvePromise: resolve as (value: any) => void,
+  const open = useCallback(
+    <T,>(render: OpenRender<T>): Promise<T | null> => {
+      if (pending) return Promise.reject(new Error("Modal already open"));
+      return new Promise<T | null>((resolve) => {
+        previousActiveElementRef.current =
+          (document.activeElement as HTMLElement) || null;
+        setPending({
+          render: render as OpenRender<unknown>,
+          resolvePromise: resolve as (value: unknown | null) => void,
+        } satisfies PendingRequest);
+        setIsMounted(true);
+        setVisualState("open");
       });
-      setIsMounted(true);
-      setVisualState("open");
-    });
-  }, []);
+    },
+    [pending]
+  );
 
   useEffect(() => {
     setExternalOpen(open);
@@ -173,7 +177,7 @@ export function ModalProvider({ children }: PropsWithChildren) {
     }
   }, [pending]);
 
-  const controls = useMemo<ModalControls<any>>(
+  const controls = useMemo<ModalControls<unknown>>(
     () => ({ resolve, cancel }),
     [resolve, cancel]
   );
@@ -230,6 +234,7 @@ export function ModalProvider({ children }: PropsWithChildren) {
   return (
     <ModalContext.Provider value={open}>
       <div
+        aria-hidden={shouldRenderLayer ? true : undefined}
         className={
           shouldRenderLayer ? "h-dvh max-h-dvh overflow-hidden" : undefined
         }
@@ -261,7 +266,7 @@ export function ModalProvider({ children }: PropsWithChildren) {
               ref={scrollContentRef}
               className="max-h-[70dvh] overflow-auto overscroll-contain"
             >
-              {pending?.render(controls as ModalControls<any>)}
+              {pending?.render(controls)}
             </div>
           </div>
         </div>
