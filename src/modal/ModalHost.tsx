@@ -1,0 +1,123 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
+
+type ModalControls<T> = {
+  resolve: (value: T) => void;
+  cancel: () => void;
+};
+
+type OpenRender<T> = (controls: ModalControls<T>) => ReactNode;
+
+type OpenFunction = <T>(render: OpenRender<T>) => Promise<T | null>;
+
+const ModalContext = createContext<OpenFunction | null>(null);
+
+let externalOpenRef: OpenFunction | null = null;
+
+export function setExternalOpen(fn: OpenFunction | null) {
+  externalOpenRef = fn;
+}
+
+export function openWithRender<T>(render: OpenRender<T>): Promise<T | null> {
+  if (!externalOpenRef) {
+    return Promise.reject(new Error("ModalProvider is not mounted"));
+  }
+  return externalOpenRef(render);
+}
+
+export function useOpenModal() {
+  const ctx = useContext(ModalContext);
+  if (!ctx) throw new Error("useOpenModal must be used within ModalProvider");
+  return ctx;
+}
+
+type PendingRequest = {
+  render: OpenRender<any>;
+  resolvePromise: (value: any) => void;
+};
+
+export function ModalProvider({ children }: PropsWithChildren) {
+  const [pending, setPending] = useState<PendingRequest | null>(null);
+  const isOpen = !!pending;
+
+  const open = useCallback(<T,>(render: OpenRender<T>): Promise<T | null> => {
+    return new Promise<T | null>((resolve) => {
+      setPending({
+        render: render as OpenRender<any>,
+        resolvePromise: resolve as (value: any) => void,
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    setExternalOpen(open);
+    return () => setExternalOpen(null);
+  }, [open]);
+
+  function handleKeydown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape" || e.key === "Esc") {
+      e.preventDefault();
+      cancel();
+    }
+  }
+
+  function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.target === e.currentTarget) cancel();
+  }
+
+  function stopPropagation(e: React.MouseEvent<HTMLDivElement>) {
+    e.stopPropagation();
+  }
+
+  const resolve = useCallback(
+    (value: unknown) => {
+      if (!pending) return;
+      pending.resolvePromise(value as unknown);
+      setPending(null);
+    },
+    [pending]
+  );
+
+  const cancel = useCallback(() => {
+    if (!pending) return;
+    pending.resolvePromise(null);
+    setPending(null);
+  }, [pending]);
+
+  const controls = useMemo<ModalControls<any>>(
+    () => ({ resolve, cancel }),
+    [resolve, cancel]
+  );
+
+  return (
+    <ModalContext.Provider value={open}>
+      {children}
+      {isOpen ? (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40"
+          onClick={handleOverlayClick}
+          onKeyDown={handleKeydown}
+          tabIndex={-1}
+        >
+          {/* 각 모달 컴포넌트 내부에서 aria-labelledby/aria-describedby를 설정합니다. */}
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-[min(560px,92vw)] max-h-[80dvh] rounded-xl bg-white p-5 shadow-xl outline-none dark:bg-zinc-900"
+            onClick={stopPropagation}
+          >
+            {pending?.render(controls as ModalControls<any>)}
+          </div>
+        </div>
+      ) : null}
+    </ModalContext.Provider>
+  );
+}
