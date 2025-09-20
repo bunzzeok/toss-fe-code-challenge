@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useLayoutEffect, useId, useRef, useState } from "react";
 
 type FormResult = { email: string };
 
@@ -16,7 +16,7 @@ export default function FormModal({ onResolve, onCancel }: Props) {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     titleRef.current?.focus();
   }, []);
 
@@ -80,7 +80,6 @@ export default function FormModal({ onResolve, onCancel }: Props) {
           <input
             ref={inputRef}
             name="email"
-            type="email"
             value={email}
             onChange={handleInputChange}
             aria-invalid={error ? true : false}
